@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知財マスター道場</title>
+<!--
+==============================================
+  知財マスター道場
+  知的財産権・農業の知的財産権 学習ゲームアプリ
+==============================================
+  対応端末: Chromebook / Windows / iPad / スマートフォン
+  技術構成: HTML5 / CSS3 / JavaScript (ES6+)
+  作成日  : 2026年
+
+【ファイル構成】
+  - このHTMLファイル1本にすべて収録
+  - <style>タグ内: CSSデザイン・アニメーション
+  - <script>タグ内: ゲームロジック全般
+
+【カスタマイズ用定数】(scriptタグ先頭)
+  - CHAR_GIRL_NAME : 美少女キャラの名前 (初期値: "AYA")
+  - CHAR_BOY_NAME  : 強面キャラの名前   (初期値: "YASUSHI")
+
+【ゲームフロー】
+  タイトル → キャラ選択 → テーマ選択 → モード選択
+  → クイズRPG or カードめくり → 結果 → 復習リスト
+
+【テーマ構成】
+  1. 著作権・著作者人格権 (10問)
+  2. 特許・実用新案      (10問)
+  3. 商標・意匠          (10問)
+  4. 農業の知的財産      (10問)
+
+【RPG要素】
+  - 経験値 (EXP) 獲得
+  - レベルアップ
+  - バッジ獲得
+  - 正答率表示
+  - 復習リスト (間違えた問題を記録)
+==============================================
+-->
+<style>
+/* =====================
+   CSS変数 (カラーパレット)
+   ===================== */
+:root {
+  --pink:    #ff6b9d;
+  --pink2:   #ff8fb3;
+  --blue:    #4a90d9;
+  --blue2:   #6aabf0;
+  --yellow:  #ffd93d;
+  --green:   #6bcb77;
+  --purple:  #9b5de5;
+  --orange:  #ff922b;
+  --dark:    #1a1a2e;
+  --dark2:   #16213e;
+  --light:   #f8f9ff;
+  --white:   #ffffff;
+  --shadow:  0 4px 20px rgba(0,0,0,0.3);
+  --radius:  16px;
+  --font-main: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic Pro', 'BIZ UDPGothic', sans-serif;
+}
+
+/* =====================
+   リセット & ベース
+   ===================== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font-main);
+  background: var(--dark);
+  color: var(--light);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* =====================
+   背景アニメーション (星)
+   ===================== */
+.bg-stars {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(155,93,229,0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(255,107,157,0.15) 0%, transparent 50%),
+    var(--dark2);
+}
+.star {
+  position: absolute;
+  background: white;
+  border-radius: 50%;
+  animation: twinkle 3s infinite alternate;
+}
+@keyframes twinkle {
+  from { opacity: 0.2; transform: scale(1); }
+  to   { opacity: 1;   transform: scale(1.3); }
+}
+
+/* =====================
+   メインラッパー
+   ===================== */
+#app {
+  position: relative; z-index: 1;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 16px;
+  min-height: 100vh;
+}
+
+/* =====================
+   スクリーン共通 (各画面)
+   ===================== */
+.screen {
+  display: none;
+  animation: fadeIn 0.4s ease;
+}
+.screen.active { display: block; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* =====================
+   カード共通スタイル
+   ===================== */
+.card {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius);
+  padding: 20px;
+  backdrop-filter: blur(8px);
+}
+
+/* =====================
+   ボタン共通
+   ===================== */
+.btn {
+  display: inline-block;
+  padding: 12px 28px;
+  border: none; border-radius: 50px;
+  font-family: var(--font-main);
+  font-size: 1rem; font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.btn:hover  { transform: translateY(-2px); filter: brightness(1.1); }
+.btn:active { transform: translateY(0);    filter: brightness(0.95); }
+.btn-pink   { background: linear-gradient(135deg, var(--pink), var(--purple)); color: #fff; }
+.btn-blue   { background: linear-gradient(135deg, var(--blue), var(--blue2));  color: #fff; }
+.btn-green  { background: linear-gradient(135deg, var(--green), #3dba6e);      color: #fff; }
+.btn-yellow { background: linear-gradient(135deg, var(--yellow), var(--orange)); color: var(--dark); }
+.btn-gray   { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+.btn-full   { width: 100%; display: block; margin: 8px 0; }
+
+/* =====================
+   ステータスバー (上部固定)
+   ===================== */
+#status-bar {
+  display: none;
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(26,26,46,0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding: 8px 16px;
+  margin: -16px -16px 16px -16px;
+}
+#status-bar.show { display: flex; }
+.status-inner {
+  display: flex; align-items: center;
+  gap: 12px; flex-wrap: wrap;
+  max-width: 800px; margin: 0 auto; width: 100%;
+}
+.char-icon { font-size: 1.5rem; }
+.stat-item { font-size: 0.8rem; display: flex; align-items: center; gap: 4px; }
+.stat-label { color: #aaa; }
+.stat-val   { font-weight: 700; }
+.exp-bar-wrap {
+  flex: 1; min-width: 80px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px; height: 8px; overflow: hidden;
+}
+.exp-bar { height: 100%; background: linear-gradient(90deg, var(--yellow), var(--orange)); border-radius: 10px; transition: width 0.5s; }
+
+/* =====================
+   タイトル画面
+   ===================== */
+#screen-title { text-align: center; padding: 20px 0; }
+.title-logo {
+  font-size: clamp(2rem, 8vw, 3.5rem);
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--yellow), var(--pink), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+  margin-bottom: 8px;
+  text-shadow: none;
+}
+.title-sub { color: #aaa; font-size: 0.95rem; margin-bottom: 32px; }
+.title-chars {
+  display: flex; justify-content: center; gap: 32px;
+  margin-bottom: 32px;
+}
+.char-preview {
+  text-align: center;
+  animation: float 3s ease-in-out infinite;
+}
+.char-preview:nth-child(2) { animation-delay: 1.5s; }
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+.char-emoji { font-size: 5rem; display: block; margin-bottom: 8px; }
+.char-name-label { font-size: 1.1rem; font-weight: 700; }
+
+/* =====================
+   キャラ選択画面
+   ===================== */
+.char-select-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  margin: 24px 0;
+}
+.char-card {
+  background: rgba(255,255,255,0.07);
+  border: 3px solid transparent;
+  border-radius: var(--radius);
+  padding: 24px 16px; text-align: center;
+  cursor: pointer; transition: all 0.25s;
+}
+.char-card:hover { transform: translateY(-4px); border-color: var(--yellow); }
+.char-card.selected { border-color: var(--yellow); background: rgba(255,217,61,0.1); }
+.char-card .emoji { font-size: 4rem; display: block; margin-bottom: 12px; }
+.char-card .name  { font-size: 1.3rem; font-weight: 900; margin-bottom: 6px; }
+.char-card .desc  { font-size: 0.82rem; color: #bbb; line-height: 1.5; }
+
+/* =====================
+   テーマ選択画面
+   ===================== */
+.theme-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  margin: 20px 0;
+}
+.theme-card {
+  background: rgba(255,255,255,0.07);
+  border: 2px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius); padding: 20px 14px;
+  text-align: center; cursor: pointer; transition: all 0.25s;
+  position: relative;
+}
+.theme-card:hover { transform: translateY(-3px); }
+.theme-card .t-icon { font-size: 2.5rem; display: block; margin-bottom: 8px; }
+.theme-card .t-name { font-size: 0.95rem; font-weight: 700; line-height: 1.4; }
+.theme-card .t-count { font-size: 0.75rem; color: #aaa; margin-top: 4px; }
+.theme-card .t-badge {
+  position: absolute; top: 8px; right: 8px;
+  background: var(--green); color: #fff;
+  border-radius: 50%; width: 22px; height: 22px;
+  font-size: 0.7rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.theme-card[data-theme="0"] { border-color: var(--pink2); }
+.theme-card[data-theme="1"] { border-color: var(--blue2); }
+.theme-card[data-theme="2"] { border-color: var(--yellow); }
+.theme-card[data-theme="3"] { border-color: var(--green);  }
+
+/* =====================
+   モード選択画面
+   ===================== */
+.mode-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  margin: 24px 0;
+}
+.mode-card {
+  background: rgba(255,255,255,0.07);
+  border: 2px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius); padding: 28px 16px;
+  text-align: center; cursor: pointer; transition: all 0.25s;
+}
+.mode-card:hover { transform: translateY(-4px); }
+.mode-card .m-icon { font-size: 3rem; display: block; margin-bottom: 12px; }
+.mode-card .m-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+.mode-card .m-desc { font-size: 0.8rem; color: #bbb; line-height: 1.5; }
+.mode-card.quiz-mode  { border-color: var(--pink); }
+.mode-card.card-mode  { border-color: var(--blue); }
+
+/* =====================
+   クイズ画面
+   ===================== */
+.quiz-header {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 20px;
+}
+.quiz-progress { flex: 1; }
+.q-label {
+  font-size: 0.8rem; color: #aaa; margin-bottom: 4px;
+  display: flex; justify-content: space-between;
+}
+.progress-bar-wrap {
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px; height: 10px; overflow: hidden;
+}
+.progress-bar {
+  height: 100%; border-radius: 10px;
+  background: linear-gradient(90deg, var(--pink), var(--purple));
+  transition: width 0.4s ease;
+}
+.char-face {
+  font-size: 2.5rem;
+  animation: bounce 0.5s ease;
+}
+@keyframes bounce {
+  0%,100% { transform: scale(1); }
+  50%      { transform: scale(1.2); }
+}
+.question-box {
+  background: rgba(255,255,255,0.06);
+  border-left: 4px solid var(--pink);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 20px; margin-bottom: 20px;
+  font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+  line-height: 1.7; font-weight: 700;
+}
+/* 吹き出し (キャラセリフ) */
+.char-balloon {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--radius); padding: 10px 14px;
+  font-size: 0.85rem; color: #ccc;
+  margin-bottom: 16px; font-style: italic;
+  position: relative;
+}
+.choices { display: grid; gap: 10px; }
+.choice-btn {
+  background: rgba(255,255,255,0.07);
+  border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 12px; padding: 14px 16px;
+  font-family: var(--font-main); font-size: 0.95rem;
+  color: #fff; cursor: pointer; text-align: left;
+  transition: all 0.2s; line-height: 1.5;
+}
+.choice-btn:hover:not(:disabled) { background: rgba(255,255,255,0.14); border-color: var(--yellow); transform: translateX(4px); }
+.choice-btn.correct  { background: rgba(107,203,119,0.25); border-color: var(--green);  color: #fff; }
+.choice-btn.wrong    { background: rgba(255,107,107,0.25); border-color: #ff6b6b;       color: #fff; }
+.choice-btn:disabled { cursor: default; }
+
+/* 正誤フィードバック */
+.feedback-box {
+  border-radius: var(--radius); padding: 14px 18px;
+  margin-top: 16px; font-size: 0.92rem; line-height: 1.6;
+  display: none;
+}
+.feedback-box.correct-fb { background: rgba(107,203,119,0.15); border: 1px solid var(--green); }
+.feedback-box.wrong-fb   { background: rgba(255,107,107,0.15); border: 1px solid #ff6b6b; }
+.feedback-box.show { display: block; animation: fadeIn 0.3s; }
+.feedback-icon { font-size: 1.5rem; margin-right: 8px; }
+
+/* =====================
+   カードめくりモード
+   ===================== */
+.card-mode-wrap { perspective: 1000px; }
+.flip-card {
+  width: 100%; height: 220px;
+  position: relative; cursor: pointer;
+  margin-bottom: 16px;
+}
+.flip-inner {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.flip-card.flipped .flip-inner { transform: rotateY(180deg); }
+.flip-front, .flip-back {
+  position: absolute; width: 100%; height: 100%;
+  backface-visibility: hidden;
+  border-radius: var(--radius); padding: 24px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+}
+.flip-front {
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  border: 2px solid rgba(255,255,255,0.2);
+}
+.flip-back {
+  background: linear-gradient(135deg, var(--pink), var(--orange));
+  border: 2px solid rgba(255,255,255,0.2);
+  transform: rotateY(180deg);
+}
+.flip-hint { font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-bottom: 12px; }
+.flip-term { font-size: clamp(1.3rem, 4vw, 2rem); font-weight: 900; }
+.flip-meaning { font-size: clamp(0.9rem, 2.5vw, 1.1rem); line-height: 1.6; }
+.flip-know-btns {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  margin-top: 12px;
+}
+
+/* =====================
+   レベルアップ演出
+   ===================== */
+.levelup-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.7);
+  align-items: center; justify-content: center;
+  flex-direction: column; text-align: center;
+}
+.levelup-overlay.show { display: flex; animation: fadeIn 0.3s; }
+.levelup-box {
+  background: linear-gradient(135deg, var(--yellow), var(--orange));
+  border-radius: 24px; padding: 40px; color: var(--dark);
+  animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes scaleIn {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.levelup-title { font-size: 2.5rem; font-weight: 900; margin-bottom: 8px; }
+.levelup-level { font-size: 1.5rem; font-weight: 700; }
+
+/* =====================
+   結果画面
+   ===================== */
+.result-header { text-align: center; padding: 20px 0; }
+.result-emoji  { font-size: 5rem; display: block; margin-bottom: 12px; }
+.result-title  { font-size: 2rem; font-weight: 900; }
+.result-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  margin: 24px 0;
+}
+.stat-box {
+  background: rgba(255,255,255,0.07);
+  border-radius: var(--radius); padding: 16px;
+  text-align: center;
+}
+.stat-box .s-val  { font-size: 2rem; font-weight: 900; }
+.stat-box .s-label{ font-size: 0.78rem; color: #aaa; margin-top: 4px; }
+.badge-section { margin: 20px 0; }
+.badge-section h3 { margin-bottom: 12px; font-size: 1rem; color: #aaa; }
+.badges-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+.badge-item {
+  background: rgba(255,255,255,0.07);
+  border-radius: 12px; padding: 10px 14px;
+  font-size: 0.82rem; text-align: center;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.badge-item.earned { border-color: var(--yellow); background: rgba(255,217,61,0.1); }
+.badge-icon { font-size: 1.5rem; display: block; margin-bottom: 4px; }
+
+/* =====================
+   復習リスト画面
+   ===================== */
+.review-item {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,107,107,0.3);
+  border-radius: 12px; padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.review-item .r-q  { font-size: 0.92rem; font-weight: 700; margin-bottom: 6px; }
+.review-item .r-ans { font-size: 0.85rem; color: var(--green); }
+.review-item .r-theme { font-size: 0.75rem; color: #888; margin-bottom: 4px; }
+.empty-review { text-align: center; color: #888; padding: 40px; font-size: 1.1rem; }
+
+/* =====================
+   セクション見出し
+   ===================== */
+.section-title {
+  font-size: clamp(1.3rem, 4vw, 1.8rem);
+  font-weight: 900; margin-bottom: 6px;
+  background: linear-gradient(135deg, var(--yellow), var(--pink));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.section-sub { font-size: 0.88rem; color: #aaa; margin-bottom: 20px; }
+
+/* =====================
+   ナビゲーションボタン (戻るなど)
+   ===================== */
+.nav-btn {
+  background: transparent; border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 20px; padding: 6px 14px;
+  color: #aaa; font-size: 0.82rem; cursor: pointer;
+  transition: all 0.2s; font-family: var(--font-main);
+}
+.nav-btn:hover { border-color: #fff; color: #fff; }
+
+/* =====================
+   通知トースト
+   ===================== */
+#toast {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--dark); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 50px; padding: 10px 24px;
+  font-size: 0.9rem; font-weight: 700;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 300; white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+/* =====================
+   レスポンシブ (スマートフォン)
+   ===================== */
+@media (max-width: 480px) {
+  .theme-grid, .mode-grid, .char-select-grid { grid-template-columns: 1fr 1fr; }
+  .result-stats { grid-template-columns: repeat(3, 1fr); }
+  .title-chars  { gap: 16px; }
+  .char-emoji   { font-size: 3.5rem; }
+  .flip-card    { height: 180px; }
+}
+@media (max-width: 360px) {
+  .theme-grid, .char-select-grid { grid-template-columns: 1fr; }
+  .mode-grid  { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- 背景の星 -->
+<div class="bg-stars" id="bg-stars"></div>
+
+<!-- レベルアップ演出オーバーレイ -->
+<div class="levelup-overlay" id="levelup-overlay">
+  <div class="levelup-box">
+    <div style="font-size:3rem">⭐</div>
+    <div class="levelup-title">LEVEL UP!</div>
+    <div class="levelup-level" id="levelup-text">Level 2 になった！</div>
+  </div>
+</div>
+
+<!-- トースト通知 -->
+<div id="toast"></div>
+
+<!-- ステータスバー -->
+<div id="status-bar">
+  <div class="status-inner">
+    <span class="char-icon" id="sb-char">👧</span>
+    <div class="stat-item">
+      <span class="stat-label">Lv.</span>
+      <span class="stat-val" id="sb-level">1</span>
+    </div>
+    <div class="exp-bar-wrap">
+      <div class="exp-bar" id="sb-expbar" style="width:0%"></div>
+    </div>
+    <div class="stat-item">
+      <span class="stat-val" id="sb-exp">0</span>
+      <span class="stat-label">EXP</span>
+    </div>
+    <button class="nav-btn" onclick="goReview()">📋 復習</button>
+  </div>
+</div>
+
+<!-- メインアプリ領域 -->
+<div id="app">
+
+  <!-- ========== タイトル画面 ========== -->
+  <div class="screen active" id="screen-title">
+    <div style="padding-top: 20px;">
+      <div class="title-logo">知財マスター<br>道場 🏯</div>
+      <div class="title-sub">知的財産権をゲームで楽しく学ぼう！</div>
+
+      <div class="title-chars">
+        <div class="char-preview">
+          <span class="char-emoji">👧</span>
+          <div class="char-name-label" id="title-aya-name">AYA</div>
+        </div>
+        <div class="char-preview" style="animation-delay:1.5s">
+          <span class="char-emoji">💪</span>
+          <div class="char-name-label" id="title-yasushi-name">YASUSHI</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px; font-size:0.88rem; line-height:1.8;">
+        <div style="font-weight:700; margin-bottom:8px;">📚 学べる内容</div>
+        著作権・著作者人格権 ／ 特許・実用新案<br>
+        商標・意匠 ／ 農業の知的財産（育成者権など）
+      </div>
+
+      <button class="btn btn-pink btn-full" style="font-size:1.2rem; padding:16px;"
+        onclick="showScreen('screen-char')">
+        ▶ はじめる
+      </button>
+      <button class="btn btn-gray btn-full" onclick="goReview()">
+        📋 復習リストを見る
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== キャラ選択画面 ========== -->
+  <div class="screen" id="screen-char">
+    <button class="nav-btn" onclick="showScreen('screen-title')" style="margin-bottom:16px">← もどる</button>
+    <div class="section-title">キャラを選んでね！</div>
+    <div class="section-sub">一緒に学ぶ仲間を選ぼう</div>
+
+    <div class="char-select-grid">
+      <div class="char-card" id="char-aya" onclick="selectChar('aya')">
+        <span class="emoji">👧</span>
+        <div class="name" id="char-aya-name">AYA</div>
+        <div class="desc">明るくて元気な女の子！<br>やさしく教えてくれるよ💕</div>
+      </div>
+      <div class="char-card" id="char-yasushi" onclick="selectChar('yasushi')">
+        <span class="emoji">😤</span>
+        <div class="name" id="char-yasushi-name">YASUSHI</div>
+        <div class="desc">強面だけど実は物知り！<br>熱く叱咤激励してくれる🔥</div>
+      </div>
+    </div>
+
+    <button class="btn btn-yellow btn-full" style="font-size:1.1rem; padding:14px;"
+      id="btn-char-next" onclick="confirmChar()" disabled>
+      このキャラで進む！
+    </button>
+  </div>
+
+  <!-- ========== テーマ選択画面 ========== -->
+  <div class="screen" id="screen-theme">
+    <button class="nav-btn" onclick="showScreen('screen-char')" style="margin-bottom:16px">← もどる</button>
+    <div class="section-title">テーマを選ぼう！</div>
+    <div class="section-sub">どの知的財産権から学ぶ？（各10問）</div>
+
+    <div class="theme-grid" id="theme-grid">
+      <!-- JSで生成 -->
+    </div>
+  </div>
+
+  <!-- ========== モード選択画面 ========== -->
+  <div class="screen" id="screen-mode">
+    <button class="nav-btn" onclick="showScreen('screen-theme')" style="margin-bottom:16px">← もどる</button>
+    <div class="section-title" id="mode-theme-name">著作権</div>
+    <div class="section-sub">どのモードで学ぶ？</div>
+
+    <div class="mode-grid">
+      <div class="mode-card quiz-mode" onclick="startQuiz()">
+        <span class="m-icon">⚔️</span>
+        <div class="m-name">クイズRPG</div>
+        <div class="m-desc">4択問題を解いて<br>経験値をゲット！<br>レベルアップを目指せ</div>
+      </div>
+      <div class="mode-card card-mode" onclick="startCardMode()">
+        <span class="m-icon">🃏</span>
+        <div class="m-name">カードめくり</div>
+        <div class="m-desc">用語カードを<br>タップしてめくる！<br>用語を定着させよう</div>
+      </div>
+    </div>
+
+    <div class="card" style="font-size:0.85rem; color:#bbb; line-height:1.6; margin-top:8px;">
+      💡 <strong>おすすめ:</strong> まずクイズRPGで腕試し！<br>間違えた問題はカードめくりで復習しよう
+    </div>
+  </div>
+
+  <!-- ========== クイズ画面 ========== -->
+  <div class="screen" id="screen-quiz">
+    <div class="quiz-header">
+      <span class="char-face" id="quiz-char-face">👧</span>
+      <div class="quiz-progress">
+        <div class="q-label">
+          <span id="q-num-label">問題 1 / 10</span>
+          <span id="q-theme-label">著作権</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="q-progress" style="width:10%"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="char-balloon" id="quiz-balloon">よっしゃ！一緒に頑張ろう！</div>
+
+    <div class="question-box" id="question-text">問題文がここに入ります</div>
+
+    <div class="choices" id="choices"></div>
+
+    <div class="feedback-box" id="feedback-box">
+      <span class="feedback-icon" id="feedback-icon">✅</span>
+      <span id="feedback-text"></span>
+    </div>
+
+    <div style="text-align:center; margin-top:20px; display:none;" id="next-btn-wrap">
+      <button class="btn btn-pink" onclick="nextQuestion()" id="next-btn">次の問題へ →</button>
+    </div>
+  </div>
+
+  <!-- ========== カードめくり画面 ========== -->
+  <div class="screen" id="screen-card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+      <button class="nav-btn" onclick="showScreen('screen-mode')">← もどる</button>
+      <div style="font-size:0.85rem; color:#aaa;">
+        <span id="card-num">1</span> / <span id="card-total">10</span>
+      </div>
+    </div>
+
+    <div class="progress-bar-wrap" style="margin-bottom:20px;">
+      <div class="progress-bar" id="card-progress" style="width:10%; background: linear-gradient(90deg, var(--blue), var(--purple));"></div>
+    </div>
+
+    <div class="card-mode-wrap">
+      <div class="flip-card" id="flip-card" onclick="flipCard()">
+        <div class="flip-inner" id="flip-inner">
+          <div class="flip-front">
+            <div class="flip-hint">📖 タップして意味を確認</div>
+            <div class="flip-term" id="card-front-text">用語</div>
+          </div>
+          <div class="flip-back">
+            <div class="flip-hint">💡 意味</div>
+            <div class="flip-meaning" id="card-back-text">意味がここに入ります</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flip-know-btns" id="flip-know-btns" style="display:none;">
+      <button class="btn btn-gray" onclick="cardAnswer(false)">😅 もう一度</button>
+      <button class="btn btn-green" onclick="cardAnswer(true)">✅ 覚えた！</button>
+    </div>
+
+    <div style="text-align:center; margin-top:16px; font-size:0.85rem; color:#888;" id="card-hint-msg">
+      カードをタップして意味を確認しよう
+    </div>
+  </div>
+
+  <!-- ========== 結果画面 ========== -->
+  <div class="screen" id="screen-result">
+    <div class="result-header">
+      <span class="result-emoji" id="result-emoji">🎉</span>
+      <div class="result-title" id="result-title">よくできました！</div>
+      <div style="color:#aaa; font-size:0.9rem; margin-top:4px;" id="result-theme-name"></div>
+    </div>
+
+    <div class="result-stats">
+      <div class="stat-box">
+        <div class="s-val" id="r-score" style="color:var(--yellow)">8</div>
+        <div class="s-label">正解数</div>
+      </div>
+      <div class="stat-box">
+        <div class="s-val" id="r-rate" style="color:var(--green)">80%</div>
+        <div class="s-label">正答率</div>
+      </div>
+      <div class="stat-box">
+        <div class="s-val" id="r-exp" style="color:var(--pink)">+80</div>
+        <div class="s-label">獲得EXP</div>
+      </div>
+    </div>
+
+    <div class="badge-section">
+      <h3>🏅 獲得バッジ</h3>
+      <div class="badges-grid" id="result-badges"></div>
+    </div>
+
+    <!-- キャラのセリフ -->
+    <div class="char-balloon" id="result-balloon" style="margin-bottom:20px;"></div>
+
+    <button class="btn btn-pink btn-full" onclick="showScreen('screen-theme')">
+      🎮 別のテーマに挑戦
+    </button>
+    <button class="btn btn-blue btn-full" onclick="goReview()">
+      📋 復習リストを見る
+    </button>
+    <button class="btn btn-gray btn-full" onclick="showScreen('screen-title')">
+      🏠 タイトルへ
+    </button>
+  </div>
+
+  <!-- ========== 復習リスト画面 ========== -->
+  <div class="screen" id="screen-review">
+    <button class="nav-btn" onclick="goBackFromReview()" style="margin-bottom:16px">← もどる</button>
+    <div class="section-title">📋 復習リスト</div>
+    <div class="section-sub">間違えた問題を振り返ろう</div>
+    <div id="review-list-content"></div>
+    <div style="margin-top:20px;">
+      <button class="btn btn-gray btn-full" onclick="clearReview()">🗑 リストをクリア</button>
+    </div>
+  </div>
+
+</div><!-- /#app -->
+
+<script>
+/* =====================================================
+   カスタマイズ定数
+   名前を変えたい場合はここだけ編集すればOK！
+   ===================================================== */
+const CHAR_GIRL_NAME   = "AYA";     // 美少女キャラの名前
+const CHAR_BOY_NAME    = "YASUSHI"; // 強面キャラの名前
+
+/* =====================================================
+   キャラクター設定
+   ===================================================== */
+const CHARS = {
+  aya: {
+    name: CHAR_GIRL_NAME,
+    emoji: "👧",
+    color: "var(--pink)",
+    // 正解・不正解・通常のセリフ
+    correct: [
+      "やったね！その調子！💕",
+      "さすが！完璧だよ✨",
+      "正解～！一緒に頑張ろう🌸",
+      "すごい！頭いいね！🎀"
+    ],
+    wrong: [
+      "惜しい！次は頑張ろう🥺",
+      "ドンマイ！解説を読んでね📖",
+      "ふむふむ、難しかったね💦",
+      "大丈夫！きっと覚えられるよ！"
+    ],
+    intro: [
+      "よっしゃ！一緒に頑張ろう💪",
+      "ファイト！絶対できるよ！🌟",
+      "楽しく学ぼうね！🎵"
+    ]
+  },
+  yasushi: {
+    name: CHAR_BOY_NAME,
+    emoji: "😤",
+    color: "var(--blue)",
+    correct: [
+      "ふっ…まあまあだな！🔥",
+      "その調子だ！俺が認めてやる💪",
+      "正解だ！やるじゃねえか😤",
+      "よし！その意気だ！"
+    ],
+    wrong: [
+      "甘いぞ！もっと気合入れろ！😤",
+      "へこたれるな！解説をよく読め💪",
+      "次は必ず正解してみせろ！🔥",
+      "まだまだだな…鍛え直しだ！"
+    ],
+    intro: [
+      "かかってこい！俺が鍛えてやる😤",
+      "気を抜くな！集中しろ！🔥",
+      "本気でかかってこいよ！💪"
+    ]
+  }
+};
+
+/* =====================================================
+   テーマデータ (教科書内容ベース)
+   各テーマ10問
+   ===================================================== */
+const THEMES = [
+  {
+    name: "著作権・著作者人格権",
+    icon: "✍️",
+    color: "var(--pink2)",
+    questions: [
+      {
+        q: "著作権はいつ発生しますか？",
+        choices: ["著作権局への登録時", "創作した時に自動的に発生", "特許庁への出願後", "公表した時"],
+        ans: 1,
+        exp: "著作権は登録や届け出なしに、創作した瞬間に自動的に発生します。これは他の知的財産権と大きく異なる点です。"
+      },
+      {
+        q: "著作権の保護期間はどのくらいですか？",
+        choices: ["著作者の死後30年", "著作者の死後50年", "著作者の死後70年", "出願日から20年"],
+        ans: 2,
+        exp: "著作権の保護期間は著作者の死後70年（死亡した翌年の1月1日から起算）です。"
+      },
+      {
+        q: "著作権（財産権）に含まれる「複製権」とはどのような権利ですか？",
+        choices: ["著作物を公表するか否かを決定する権利", "著作物を口頭で公に伝える権利", "著作物を複製する権利", "著作物を展示する権利"],
+        ans: 2,
+        exp: "複製権は著作物をコピー・印刷・録音・録画などで複製する権利です。無断でコピーすることは複製権の侵害になります。"
+      },
+      {
+        q: "「公衆送信権」とはどのような権利ですか？",
+        choices: ["著作物を公に送信する権利", "著作物を郵便で送る権利", "著作物を販売する権利", "著作物を翻訳する権利"],
+        ans: 0,
+        exp: "公衆送信権は著作物をインターネットや放送などで公に送信する権利です。YouTubeやSNSへの無断投稿はこれに違反します。"
+      },
+      {
+        q: "著作者人格権の「氏名表示権」とはどのような権利ですか？",
+        choices: ["氏名を登録する権利", "著作物の公表時に氏名を表示するか否かを決める権利", "ペンネームを使用する権利", "著作物に署名する権利"],
+        ans: 1,
+        exp: "氏名表示権は、著作物を公表する際に本名・ペンネーム・無記名のどれにするかを決定できる権利です。"
+      },
+      {
+        q: "著作者人格権の「同一性保持権」とはどのような権利ですか？",
+        choices: ["同じ作品を複数作る権利", "著作物の内容を改変されない権利", "著作物の統一を図る権利", "同一人物であることを証明する権利"],
+        ans: 1,
+        exp: "同一性保持権は、著作物の内容・題号を著作者の意に反して改変されない権利です。無断で内容を変えることはできません。"
+      },
+      {
+        q: "著作者人格権の「公表権」とはどのような権利ですか？",
+        choices: ["著作物を公表するか否かを決定する権利", "著作物を公の場で発表する権利", "著作物を出版社に送る権利", "著作物を発表する場所を選ぶ権利"],
+        ans: 0,
+        exp: "公表権は、まだ公表されていない著作物を公表するか、いつどのような方法で公表するかを決める権利です。"
+      },
+      {
+        q: "映画の著作物の「頒布権」とはどのような権利ですか？",
+        choices: ["映画を上映する権利", "映画の著作物を販売したり、貸与したりする権利", "映画を配信する権利", "映画を複製する権利"],
+        ans: 1,
+        exp: "頒布権は映画の著作物を販売・貸与する権利です。映画以外の著作物には「譲渡権・貸与権」が対応します。"
+      },
+      {
+        q: "「著作隣接権」の保護対象として正しいものはどれですか？",
+        choices: ["発明した人", "実演家（歌手・演奏家など）や放送事業者", "デザインを作った人", "ブランド名を作った人"],
+        ans: 1,
+        exp: "著作隣接権は実演家（歌手・演奏家）・放送事業者・レコード製作者などを保護します。演奏や放送をした時に自動的に発生します。"
+      },
+      {
+        q: "「翻訳権・翻案権」とはどのような権利ですか？",
+        choices: ["著作物を外国語に翻訳してもらう権利", "著作物を翻訳・編曲・変形などでつくりかえる権利", "著作物を別の形式に変換する権利", "著作物の翻訳版を購入する権利"],
+        ans: 1,
+        exp: "翻訳権・翻案権は著作物を翻訳したり、編曲・変形・映画化などの方法でつくりかえる（二次創作する）権利です。"
+      }
+    ]
+  },
+  {
+    name: "特許・実用新案",
+    icon: "💡",
+    color: "var(--blue2)",
+    questions: [
+      {
+        q: "特許権の保護対象はなんですか？",
+        choices: ["デザイン", "発明", "商品名", "植物の新品種"],
+        ans: 1,
+        exp: "特許権は「発明」を保護する権利です。高度な技術的アイデアが対象となります。"
+      },
+      {
+        q: "特許権の保護期間はどのくらいですか？",
+        choices: ["出願の日から最大10年", "出願の日から最大20年", "登録から25年", "出願の日から最大30年"],
+        ans: 1,
+        exp: "特許権の保護期間は出願の日から最大20年です（医薬品は最大25年）。"
+      },
+      {
+        q: "特許権を取得するにはどうすればよいですか？",
+        choices: ["農林水産省への登録", "自動的に発生する", "特許庁への出願・登録", "文化庁への届け出"],
+        ans: 2,
+        exp: "特許権は特許庁への出願・審査・登録を経て取得します。著作権と違い、自動的には発生しません。"
+      },
+      {
+        q: "実用新案権の保護対象はなんですか？",
+        choices: ["まったく新しい発明", "すでにある物品に対する組み合わせや新たな工夫", "商品のデザイン", "音楽や映像"],
+        ans: 1,
+        exp: "実用新案権は「すでにある物品に対する組み合わせや新たな工夫（考案）」を保護します。特許より保護対象が限定的です。"
+      },
+      {
+        q: "実用新案権の審査について正しい説明はどれですか？",
+        choices: ["厳しい審査がある", "審査なし（無審査）で登録できる", "農林水産省が審査する", "著作権局が審査する"],
+        ans: 1,
+        exp: "実用新案権は特許庁への出願・登録で取得しますが、特許と異なり無審査で登録できます。ただし権利行使時に有効性が審査されます。"
+      },
+      {
+        q: "実用新案権の保護期間はどのくらいですか？",
+        choices: ["5年", "10年", "20年", "25年"],
+        ans: 1,
+        exp: "実用新案権の保護期間は出願の日から10年です。特許権（20年）より短くなっています。"
+      },
+      {
+        q: "農業分野における特許の例として正しいものはどれですか？",
+        choices: ["シャインマスカットの品種", "あまおうというブランド名", "四角いメロンの栽培用型枠（カクメロ）", "デコポンという商品名"],
+        ans: 2,
+        exp: "農業分野では多面体形状のメロン栽培方法や四角いメロン栽培用型枠（カクメロ）などが特許として保護されています。"
+      },
+      {
+        q: "特許を取得すると何ができますか？",
+        choices: ["発明者が発明を独占的に利用できる", "誰でも無料でその発明を使える", "発明の内容を秘密にできる", "発明を他人に強制的に売れる"],
+        ans: 0,
+        exp: "特許を取得すると、発明者が発明権利を独占的に利用できる権利が発生します。無断でその技術を使うことは特許侵害になります。"
+      },
+      {
+        q: "医薬品の特許権の保護期間はどのくらいですか？",
+        choices: ["出願から20年", "出願から最大25年", "登録から20年", "登録から30年"],
+        ans: 1,
+        exp: "医薬品は開発・審査に時間がかかるため、特許権の保護期間が出願日から最大25年に延長されています。"
+      },
+      {
+        q: "農業の搬送方法・品質管理方法・コンテナなどはどの知的財産権で保護されますか？",
+        choices: ["育成者権", "商標権", "特許権", "意匠権"],
+        ans: 2,
+        exp: "農産物の搬送方法・品質管理方法・コンテナなどの技術的な発明は特許権で保護されます。"
+      }
+    ]
+  },
+  {
+    name: "商標・意匠",
+    icon: "🏷️",
+    color: "var(--yellow)",
+    questions: [
+      {
+        q: "商標権の保護対象はなんですか？",
+        choices: ["発明や新技術", "商品名やサービス名", "デザインや形状", "植物の新品種"],
+        ans: 1,
+        exp: "商標権は商品名・サービス名・ロゴマークなどを保護する権利です。ブランドを他者に真似されないために使います。"
+      },
+      {
+        q: "商標権の保護期間はどのくらいですか？",
+        choices: ["設定された登録日から5年（更新不可）", "設定された登録日から10年（更新すれば無期限）", "出願の日から20年", "登録から25年"],
+        ans: 1,
+        exp: "商標権の保護期間は登録日から10年ですが、更新を繰り返せば実質的に無期限に保護を受けられます。"
+      },
+      {
+        q: "意匠権の保護対象はなんですか？",
+        choices: ["商品名・サービス名", "発明や考案", "デザイン（形・模様・色彩など）", "著作物"],
+        ans: 2,
+        exp: "意匠権は製品の外観デザイン（形状・模様・色彩やその組み合わせ）を保護する権利です。"
+      },
+      {
+        q: "意匠権の保護期間はどのくらいですか？",
+        choices: ["出願の日から10年", "出願の日から最大20年", "出願の日から最大25年", "登録から30年"],
+        ans: 2,
+        exp: "意匠権の保護期間は出願の日から最大25年です（2020年の法改正で20年から延長）。"
+      },
+      {
+        q: "商標権・意匠権を取得するにはどこに出願しますか？",
+        choices: ["農林水産省", "文化庁", "特許庁", "経済産業省"],
+        ans: 2,
+        exp: "商標権・意匠権はともに特許庁への出願・登録によって取得します。"
+      },
+      {
+        q: "「地域団体商標権」とはどのような権利ですか？",
+        choices: ["地名だけで構成される商標", "地名＋商品名からなる商標を独占使用できる権利", "農業団体だけが使える商標", "地域の農家全員が使える商標"],
+        ans: 1,
+        exp: "地域団体商標権は「地名＋商品名」で構成される商標を独占使用できる権利です。例：十勝川西長いも、下関ふく、関あじ など。"
+      },
+      {
+        q: "農業の知的財産における商標権の例として正しいものはどれですか？",
+        choices: ["シャインマスカット（品種）", "あまおう・デコポン（ブランド名）", "カクメロ（栽培技術）", "福岡S6号（品種番号）"],
+        ans: 1,
+        exp: "あまおう・デコポンは商標権で保護されているブランド名です。これにより他の業者が無断で同じ名前を使えません。"
+      },
+      {
+        q: "地域団体商標権の例として正しいものはどれですか？",
+        choices: ["あまおう", "シャインマスカット", "十勝川西長いも・関あじ", "カクメロ"],
+        ans: 2,
+        exp: "十勝川西長いも・下関ふく・関あじ・関さばなどは地域団体商標権の代表例です。地名＋産品名の組み合わせで保護されます。"
+      },
+      {
+        q: "商標権を更新しないとどうなりますか？",
+        choices: ["自動的に永久に保護される", "保護期間終了後は権利が消滅する", "特許庁が自動更新してくれる", "10年ごとに無料で更新される"],
+        ans: 1,
+        exp: "商標権は10年ごとに更新手続きと費用が必要です。更新しなければ権利が消滅し、他者が同じ商標を使える可能性があります。"
+      },
+      {
+        q: "商標と意匠の違いとして正しいものはどれですか？",
+        choices: [
+          "商標は名前・ロゴを保護し、意匠は製品のデザインを保護する",
+          "商標はデザインを保護し、意匠は名前を保護する",
+          "どちらも同じものを保護する",
+          "商標は特許庁、意匠は文化庁に出願する"
+        ],
+        ans: 0,
+        exp: "商標権は商品名・サービス名・ロゴを保護し、意匠権は製品の外観デザイン（形・模様・色彩）を保護します。"
+      }
+    ]
+  },
+  {
+    name: "農業の知的財産",
+    icon: "🌾",
+    color: "var(--green)",
+    questions: [
+      {
+        q: "「育成者権」とはどのような権利ですか？",
+        choices: [
+          "農業技術者の労働権",
+          "農林水産物の新品種を独占的に利用できる権利",
+          "農地を独占的に利用できる権利",
+          "農業機械の特許権"
+        ],
+        ans: 1,
+        exp: "育成者権（品種登録による）は、農林水産物の生産のために栽培される植物の新品種を独占的に利用できる権利です。種苗法に基づきます。"
+      },
+      {
+        q: "育成者権はどこに出願しますか？",
+        choices: ["特許庁", "文化庁", "農林水産省", "経済産業省"],
+        ans: 2,
+        exp: "育成者権（品種登録）は農林水産省への出願・登録によって取得します。特許庁ではありません。"
+      },
+      {
+        q: "育成者権の保護期間はどのくらいですか？",
+        choices: ["登録から10年", "登録から20年", "登録から25年（樹木は30年）", "登録から30年"],
+        ans: 2,
+        exp: "育成者権の保護期間は登録から25年（樹木は30年）です。"
+      },
+      {
+        q: "育成者権で保護されている品種の例として正しいものはどれですか？",
+        choices: ["あまおう・デコポン", "シャインマスカット・おぼろづき・福岡S6号", "十勝川西長いも・関あじ", "カクメロ"],
+        ans: 1,
+        exp: "シャインマスカット・おぼろづき・福岡S6号などは育成者権（品種登録）で保護されている品種の代表例です。"
+      },
+      {
+        q: "農業の知的財産権が必要な理由として最も適切なものはどれですか？",
+        choices: [
+          "農家の収入を増やすため",
+          "品種開発の成果を守り、新品種開発への投資を促進するため",
+          "外国からの輸入を制限するため",
+          "農産物の価格を上げるため"
+        ],
+        ans: 1,
+        exp: "長年かけて開発した新品種や技術を保護することで、さらなる品種開発への投資を促進し、農業の発展につなげることが目的です。"
+      },
+      {
+        q: "シャインマスカットはどの知的財産権で保護されていますか？",
+        choices: ["商標権", "特許権", "育成者権（品種登録）", "意匠権"],
+        ans: 2,
+        exp: "シャインマスカットは農林水産省への品種登録により育成者権で保護されています。なお、海外での無断栽培が問題になったこともあります。"
+      },
+      {
+        q: "「あまおう」「デコポン」はどの知的財産権で保護されていますか？",
+        choices: ["育成者権", "商標権", "特許権", "意匠権"],
+        ans: 1,
+        exp: "あまおう・デコポンは商標権で保護されているブランド名です。品種名ではなく商品名・ブランド名として登録されています。"
+      },
+      {
+        q: "農業における「地域団体商標権」の出願先はどこですか？",
+        choices: ["農林水産省", "文化庁", "特許庁", "農業協同組合"],
+        ans: 2,
+        exp: "地域団体商標権も商標権の一種なので、特許庁への出願・登録が必要です。"
+      },
+      {
+        q: "農業の知的財産権において、搬送方法・品質管理方法などの技術を保護するのはどれですか？",
+        choices: ["育成者権", "商標権", "地域団体商標権", "特許権"],
+        ans: 3,
+        exp: "農産物の搬送方法・品質管理方法・コンテナなどの技術的な発明は特許権で保護されます。図7（農業分野における知的財産権）に示されています。"
+      },
+      {
+        q: "種苗法（しゅびょうほう）はどのような法律ですか？",
+        choices: [
+          "農業機械を保護する法律",
+          "植物の新品種を保護し育成者権を定めた法律",
+          "農地の利用を定めた法律",
+          "農産物の品質基準を定めた法律"
+        ],
+        ans: 1,
+        exp: "種苗法は植物の新品種を保護し、育成者権（品種登録による権利）を定めた法律です。農林水産省が管轄しています。"
+      }
+    ]
+  }
+];
+
+/* =====================================================
+   ゲーム状態管理
+   ===================================================== */
+let state = {
+  char: null,           // 選択キャラ ('aya' or 'yasushi')
+  currentTheme: 0,      // 現在のテーマインデックス
+  currentMode: null,    // 'quiz' or 'card'
+  currentQ: 0,          // 現在の問題番号
+  score: 0,             // 正解数
+  exp: 0,               // 累計EXP
+  level: 1,             // 現在レベル
+  badges: [],           // 獲得バッジ一覧
+  reviewList: [],       // 復習リスト（間違えた問題）
+  answered: false,      // 現在の問題に答えたか
+  cardIndex: 0,         // カードめくりの現在インデックス
+  cardKnown: [],        // カードめくりで「覚えた」フラグ
+  prevScreen: 'screen-title' // 復習から戻る先
+};
+
+/* =====================================================
+   レベルアップ必要EXP (レベルごと)
+   ===================================================== */
+const LEVEL_EXP = [0, 50, 120, 220, 350, 520, 720, 960, 1240, 1560, 9999];
+
+/* =====================================================
+   バッジ定義
+   ===================================================== */
+const BADGES = [
+  { id: 'first',     icon: '🌟', name: '初挑戦',     cond: s => s.score >= 1 },
+  { id: 'perfect',   icon: '💎', name: 'パーフェクト', cond: s => s.score === 10 },
+  { id: 'great',     icon: '🥇', name: 'グレート',    cond: s => s.score >= 8 },
+  { id: 'good',      icon: '🥈', name: 'グッド',      cond: s => s.score >= 6 },
+  { id: 'keep_going',icon: '🔥', name: '諦めない心',  cond: s => s.score < 6 },
+  { id: 'lv5',       icon: '⭐', name: 'Level 5達成', cond: s => s.level >= 5 },
+  { id: 'lv10',      icon: '🌈', name: 'Level 10達成',cond: s => s.level >= 10 },
+];
+
+/* =====================================================
+   初期化
+   ===================================================== */
+window.onload = function() {
+  // キャラ名を定数から反映
+  document.getElementById('title-aya-name').textContent    = CHAR_GIRL_NAME;
+  document.getElementById('title-yasushi-name').textContent = CHAR_BOY_NAME;
+  document.getElementById('char-aya-name').textContent     = CHAR_GIRL_NAME;
+  document.getElementById('char-yasushi-name').textContent  = CHAR_BOY_NAME;
+
+  // ローカルストレージから復習リストを読み込み
+  const saved = localStorage.getItem('chizai_review');
+  if (saved) state.reviewList = JSON.parse(saved);
+
+  // テーマグリッドを生成
+  buildThemeGrid();
+
+  // 背景の星を生成
+  buildStars();
+};
+
+/* =====================================================
+   背景の星を生成
+   ===================================================== */
+function buildStars() {
+  const bg = document.getElementById('bg-stars');
+  for (let i = 0; i < 60; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 3 + 1;
+    s.style.cssText = `
+      width:${size}px; height:${size}px;
+      top:${Math.random()*100}%;
+      left:${Math.random()*100}%;
+      animation-delay:${Math.random()*3}s;
+      animation-duration:${2+Math.random()*3}s;
+    `;
+    bg.appendChild(s);
+  }
+}
+
+/* =====================================================
+   テーマグリッドを生成
+   ===================================================== */
+function buildThemeGrid() {
+  const grid = document.getElementById('theme-grid');
+  grid.innerHTML = '';
+  THEMES.forEach((t, i) => {
+    // クリア済みバッジ
+    const card = document.createElement('div');
+    card.className = 'theme-card';
+    card.dataset.theme = i;
+    card.style.borderColor = t.color;
+    card.innerHTML = `
+      <span class="t-icon">${t.icon}</span>
+      <div class="t-name">${t.name}</div>
+      <div class="t-count">📝 10問</div>
+    `;
+    card.onclick = () => selectTheme(i);
+    grid.appendChild(card);
+  });
+}
+
+/* =====================================================
+   画面遷移
+   ===================================================== */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+
+  // ステータスバーはキャラ選択後に表示
+  const sb = document.getElementById('status-bar');
+  if (state.char && id !== 'screen-title' && id !== 'screen-char') {
+    sb.classList.add('show');
+  } else {
+    sb.classList.remove('show');
+  }
+}
+
+/* =====================================================
+   キャラ選択
+   ===================================================== */
+function selectChar(charKey) {
+  state.char = charKey;
+  document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('char-' + charKey).classList.add('selected');
+  document.getElementById('btn-char-next').disabled = false;
+}
+
+function confirmChar() {
+  if (!state.char) return;
+  updateStatusBar();
+  showScreen('screen-theme');
+}
+
+/* =====================================================
+   ステータスバー更新
+   ===================================================== */
+function updateStatusBar() {
+  if (!state.char) return;
+  const ch = CHARS[state.char];
+  document.getElementById('sb-char').textContent  = ch.emoji;
+  document.getElementById('sb-level').textContent = state.level;
+  document.getElementById('sb-exp').textContent   = state.exp;
+
+  // EXPバー計算
+  const curLvExp  = LEVEL_EXP[state.level - 1] || 0;
+  const nextLvExp = LEVEL_EXP[state.level] || 9999;
+  const pct = Math.min(100, ((state.exp - curLvExp) / (nextLvExp - curLvExp)) * 100);
+  document.getElementById('sb-expbar').style.width = pct + '%';
+}
+
+/* =====================================================
+   テーマ選択
+   ===================================================== */
+function selectTheme(idx) {
+  state.currentTheme = idx;
+  document.getElementById('mode-theme-name').textContent = THEMES[idx].name;
+  showScreen('screen-mode');
+}
+
+/* =====================================================
+   クイズRPGスタート
+   ===================================================== */
+function startQuiz() {
+  state.currentMode = 'quiz';
+  state.currentQ = 0;
+  state.score    = 0;
+  state.answered = false;
+  showScreen('screen-quiz');
+  loadQuestion();
+}
+
+function loadQuestion() {
+  const theme = THEMES[state.currentTheme];
+  const q     = theme.questions[state.currentQ];
+  const ch    = CHARS[state.char];
+  const total = theme.questions.length;
+
+  // ヘッダー更新
+  document.getElementById('quiz-char-face').textContent    = ch.emoji;
+  document.getElementById('q-num-label').textContent       = `問題 ${state.currentQ + 1} / ${total}`;
+  document.getElementById('q-theme-label').textContent     = theme.name;
+  document.getElementById('q-progress').style.width        = `${((state.currentQ + 1) / total) * 100}%`;
+  document.getElementById('question-text').textContent     = q.q;
+  document.getElementById('quiz-balloon').textContent      = ch.intro[state.currentQ % ch.intro.length];
+
+  // 選択肢を生成
+  const choicesEl = document.getElementById('choices');
+  choicesEl.innerHTML = '';
+  q.choices.forEach((c, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.innerHTML = `<span style="opacity:0.5;margin-right:8px;">${['Ａ','Ｂ','Ｃ','Ｄ'][i]}</span>${c}`;
+    btn.onclick = () => answerQuiz(i);
+    choicesEl.appendChild(btn);
+  });
+
+  // フィードバックと次へボタンをリセット
+  const fb = document.getElementById('feedback-box');
+  fb.className = 'feedback-box';
+  document.getElementById('next-btn-wrap').style.display = 'none';
+  state.answered = false;
+}
+
+function answerQuiz(chosen) {
+  if (state.answered) return;
+  state.answered = true;
+
+  const theme = THEMES[state.currentTheme];
+  const q     = theme.questions[state.currentQ];
+  const ch    = CHARS[state.char];
+  const correct = chosen === q.ans;
+
+  // ボタンの色変更
+  const btns = document.querySelectorAll('.choice-btn');
+  btns.forEach((b, i) => {
+    b.disabled = true;
+    if (i === q.ans)   b.classList.add('correct');
+    if (i === chosen && !correct) b.classList.add('wrong');
+  });
+
+  // フィードバック表示
+  const fb = document.getElementById('feedback-box');
+  const fbIcon = document.getElementById('feedback-icon');
+  const fbText = document.getElementById('feedback-text');
+
+  if (correct) {
+    state.score++;
+    const gain = 10;
+    addExp(gain);
+    fb.className = 'feedback-box correct-fb show';
+    fbIcon.textContent = '✅';
+    fbText.innerHTML = `<strong>${ch.correct[Math.floor(Math.random()*ch.correct.length)]}</strong><br>
+      <span style="color:var(--yellow)">+${gain} EXP</span><br><br>
+      <span style="font-size:0.88rem; color:#ccc;">${q.exp}</span>`;
+    document.getElementById('quiz-balloon').textContent = ch.correct[Math.floor(Math.random()*ch.correct.length)];
+  } else {
+    fb.className = 'feedback-box wrong-fb show';
+    fbIcon.textContent = '❌';
+    fbText.innerHTML = `<strong>${ch.wrong[Math.floor(Math.random()*ch.wrong.length)]}</strong><br>
+      <span style="color:var(--green)">正解: ${q.choices[q.ans]}</span><br><br>
+      <span style="font-size:0.88rem; color:#ccc;">${q.exp}</span>`;
+    document.getElementById('quiz-balloon').textContent = ch.wrong[Math.floor(Math.random()*ch.wrong.length)];
+
+    // 復習リストに追加
+    addToReview(theme.name, q);
+  }
+
+  // 次へボタン表示
+  const nextWrap = document.getElementById('next-btn-wrap');
+  nextWrap.style.display = 'block';
+  const lastQ = state.currentQ >= theme.questions.length - 1;
+  document.getElementById('next-btn').textContent = lastQ ? '結果を見る 🏆' : '次の問題へ →';
+}
+
+function nextQuestion() {
+  const theme = THEMES[state.currentTheme];
+  state.currentQ++;
+  if (state.currentQ >= theme.questions.length) {
+    showResult();
+  } else {
+    loadQuestion();
+    // スクロールを上に戻す
+    document.getElementById('screen-quiz').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+/* =====================================================
+   EXP・レベルアップ処理
+   ===================================================== */
+function addExp(amount) {
+  state.exp += amount;
+  const oldLevel = state.level;
+  while (state.level < LEVEL_EXP.length - 1 && state.exp >= LEVEL_EXP[state.level]) {
+    state.level++;
+  }
+  updateStatusBar();
+  if (state.level > oldLevel) {
+    showLevelUp();
+  }
+}
+
+function showLevelUp() {
+  const overlay = document.getElementById('levelup-overlay');
+  document.getElementById('levelup-text').textContent = `Level ${state.level} になった！`;
+  overlay.classList.add('show');
+  setTimeout(() => overlay.classList.remove('show'), 2000);
+  showToast(`⭐ Level ${state.level} にレベルアップ！`);
+}
+
+/* =====================================================
+   トースト通知
+   ===================================================== */
+function showToast(msg, duration = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+/* =====================================================
+   復習リスト追加
+   ===================================================== */
+function addToReview(themeName, q) {
+  // 重複チェック
+  const exists = state.reviewList.some(r => r.q === q.q);
+  if (!exists) {
+    state.reviewList.push({ theme: themeName, q: q.q, ans: q.choices[q.ans], exp: q.exp });
+    localStorage.setItem('chizai_review', JSON.stringify(state.reviewList));
+  }
+}
+
+/* =====================================================
+   結果画面
+   ===================================================== */
+function showResult() {
+  const theme = THEMES[state.currentTheme];
+  const ch    = CHARS[state.char];
+  const total = theme.questions.length;
+  const rate  = Math.round((state.score / total) * 100);
+  const expGain = state.score * 10;
+
+  // ボーナスEXP（高正答率）
+  let bonus = 0;
+  if (rate === 100) bonus = 30;
+  else if (rate >= 80) bonus = 15;
+  else if (rate >= 60) bonus = 5;
+  if (bonus > 0) { addExp(bonus); showToast(`🎁 ボーナス +${bonus} EXP！`); }
+
+  // 結果表示
+  let emoji = '😅', title = 'もう一度挑戦しよう！';
+  if (rate === 100)      { emoji = '🏆'; title = 'パーフェクト！！'; }
+  else if (rate >= 80)   { emoji = '🎉'; title = 'すばらしい！'; }
+  else if (rate >= 60)   { emoji = '👍'; title = 'よくできました！'; }
+  else if (rate >= 40)   { emoji = '💪'; title = 'もう少し！'; }
+
+  document.getElementById('result-emoji').textContent      = emoji;
+  document.getElementById('result-title').textContent      = title;
+  document.getElementById('result-theme-name').textContent = theme.name;
+  document.getElementById('r-score').textContent           = `${state.score}/${total}`;
+  document.getElementById('r-rate').textContent            = rate + '%';
+  document.getElementById('r-exp').textContent             = '+' + (expGain + bonus);
+
+  // バッジ判定
+  const earnedBadges = BADGES.filter(b => b.cond({ score: state.score, level: state.level }));
+  earnedBadges.forEach(b => {
+    if (!state.badges.includes(b.id)) state.badges.push(b.id);
+  });
+  const badgeEl = document.getElementById('result-badges');
+  badgeEl.innerHTML = '';
+  if (earnedBadges.length === 0) {
+    badgeEl.innerHTML = '<div style="color:#888; font-size:0.85rem;">今回は獲得なし。次回に期待！</div>';
+  } else {
+    earnedBadges.forEach(b => {
+      const el = document.createElement('div');
+      el.className = 'badge-item earned';
+      el.innerHTML = `<span class="badge-icon">${b.icon}</span>${b.name}`;
+      badgeEl.appendChild(el);
+    });
+  }
+
+  // キャラのセリフ
+  const balloon = rate >= 70
+    ? ch.correct[Math.floor(Math.random()*ch.correct.length)]
+    : ch.wrong[Math.floor(Math.random()*ch.wrong.length)];
+  document.getElementById('result-balloon').textContent = `${ch.emoji} ${ch.name}: "${balloon}"`;
+
+  showScreen('screen-result');
+}
+
+/* =====================================================
+   カードめくりモード
+   ===================================================== */
+function startCardMode() {
+  state.currentMode = 'card';
+  state.cardIndex   = 0;
+  state.cardKnown   = new Array(THEMES[state.currentTheme].questions.length).fill(false);
+  showScreen('screen-card');
+  loadCard();
+}
+
+function loadCard() {
+  const theme = THEMES[state.currentTheme];
+  const q     = theme.questions[state.cardIndex];
+  const total = theme.questions.length;
+
+  document.getElementById('card-num').textContent   = state.cardIndex + 1;
+  document.getElementById('card-total').textContent = total;
+  document.getElementById('card-progress').style.width = `${((state.cardIndex+1)/total)*100}%`;
+
+  // カードを表にリセット
+  document.getElementById('flip-card').classList.remove('flipped');
+  document.getElementById('flip-know-btns').style.display = 'none';
+  document.getElementById('card-hint-msg').textContent = 'カードをタップして意味を確認しよう';
+
+  // 用語 (q.q から抜粋) と意味 (正解選択肢)
+  document.getElementById('card-front-text').textContent = q.q;
+  document.getElementById('card-back-text').textContent  = `${q.choices[q.ans]}\n\n💡 ${q.exp}`;
+}
+
+function flipCard() {
+  const card = document.getElementById('flip-card');
+  if (!card.classList.contains('flipped')) {
+    card.classList.add('flipped');
+    setTimeout(() => {
+      document.getElementById('flip-know-btns').style.display = 'grid';
+      document.getElementById('card-hint-msg').textContent = '覚えていた？';
+    }, 400);
+  }
+}
+
+function cardAnswer(known) {
+  const theme = THEMES[state.currentTheme];
+  state.cardKnown[state.cardIndex] = known;
+
+  if (!known) {
+    addToReview(theme.name, theme.questions[state.cardIndex]);
+    showToast('📋 復習リストに追加したよ');
+  } else {
+    addExp(5);
+    showToast('✅ 覚えた！ +5 EXP');
+  }
+
+  state.cardIndex++;
+  if (state.cardIndex >= theme.questions.length) {
+    // カードモード終了
+    const known = state.cardKnown.filter(Boolean).length;
+    showToast(`🎉 カードめくり終了！ ${known}/${theme.questions.length} 枚覚えた！`, 3000);
+    setTimeout(() => showScreen('screen-mode'), 1500);
+  } else {
+    loadCard();
+  }
+}
+
+/* =====================================================
+   復習リスト画面
+   ===================================================== */
+function goReview() {
+  // 現在の画面を記録して戻れるように
+  const active = document.querySelector('.screen.active');
+  state.prevScreen = active ? active.id : 'screen-title';
+  renderReview();
+  showScreen('screen-review');
+}
+
+function goBackFromReview() {
+  showScreen(state.prevScreen);
+}
+
+function renderReview() {
+  const el = document.getElementById('review-list-content');
+  if (state.reviewList.length === 0) {
+    el.innerHTML = '<div class="empty-review">🎉 復習リストは空です！<br>全問正解できてるね！</div>';
+    return;
+  }
+  el.innerHTML = state.reviewList.map((r, i) => `
+    <div class="review-item">
+      <div class="r-theme">📁 ${r.theme}</div>
+      <div class="r-q">Q${i+1}. ${r.q}</div>
+      <div class="r-ans">✅ 正解: ${r.ans}</div>
+      <div style="font-size:0.8rem; color:#999; margin-top:4px;">💡 ${r.exp}</div>
+    </div>
+  `).join('');
+}
+
+function clearReview() {
+  if (confirm('復習リストをすべて削除しますか？')) {
+    state.reviewList = [];
+    localStorage.removeItem('chizai_review');
+    renderReview();
+    showToast('🗑 復習リストをクリアしました');
+  }
+}
+</script>
+</body>
+</html>
